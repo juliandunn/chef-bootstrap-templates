@@ -1,0 +1,131 @@
+@rem
+@rem Author:: Seth Chisamore (<schisamo@opscode.com>)
+@rem Author:: Julian C. Dunn (<jdunn@opscode.com>)
+
+@rem Copyright:: Copyright (c) 2011-2013 Opscode, Inc.
+@rem License:: Apache License, Version 2.0
+@rem
+@rem Licensed under the Apache License, Version 2.0 (the "License");
+@rem you may not use this file except in compliance with the License.
+@rem You may obtain a copy of the License at
+@rem
+@rem     http://www.apache.org/licenses/LICENSE-2.0
+@rem
+@rem Unless required by applicable law or agreed to in writing, software
+@rem distributed under the License is distributed on an "AS IS" BASIS,
+@rem WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+@rem See the License for the specific language governing permissions and
+@rem limitations under the License.
+@rem
+
+@echo off
+@setlocal
+
+<%= "SETX HTTP_PROXY \"#{knife_config[:bootstrap_proxy]}\"" if knife_config[:bootstrap_proxy] %>
+@mkdir <%= bootstrap_directory %>
+
+> <%= bootstrap_directory %>\wget.ps1 (
+ <%= win_wget_ps %>
+)
+
+@rem Determine the version and the architecture
+
+@FOR /F "tokens=1-8 delims=.[] " %%A IN ('ver') DO (
+@set WinMajor=%%D
+@set WinMinor=%%E
+@set WinBuild=%%F
+)
+
+@goto Version%WinMajor%.%WinMinor%
+
+@rem If this is an unknown version of windows set the default
+@set MACHINE_OS=2008r2
+@goto architecture
+
+:Version6.0
+@set MACHINE_OS=2008
+@goto architecture
+
+:Version5.2
+@set MACHINE_OS=2003r2
+@goto architecture
+
+:Version6.1
+@set MACHINE_OS=2008r2
+@goto architecture
+
+:Version6.2
+@set MACHINE_OS=2012
+@goto architecture
+
+:Version6.3
+@REM Pretend 2012R2 is 2012 until we ship Omnibuses for that OS
+@set MACHINE_OS=2012
+@goto architecture
+
+:architecture
+
+@goto Architecture%PROCESSOR_ARCHITECTURE%
+
+@rem If this is an unknown architecture set the default
+@set MACHINE_ARCH=i686
+@goto install
+
+:Architecturex86
+@set MACHINE_ARCH=i686
+@goto install
+
+:Architectureamd64
+@set MACHINE_ARCH=x86_64
+@goto install
+
+:install
+@rem Install Chef using chef-client MSI installer
+
+@set "REMOTE_SOURCE_MSI_URL=https://www.opscode.com/chef/download?p=windows&pv=%MACHINE_OS%&m=%MACHINE_ARCH%"
+@set "LOCAL_DESTINATION_MSI_PATH=<%= local_download_path %>"
+@set "QUERY_STRING=&DownloadContext=PowerShell"
+
+@if EXIST "%LOCAL_DESTINATION_MSI_PATH%" del /f /q "%LOCAL_DESTINATION_MSI_PATH%"
+@echo Downloading Chef...
+@powershell -ExecutionPolicy Unrestricted -NoProfile -NonInteractive "& '<%= bootstrap_directory %>\wget.ps1' '%REMOTE_SOURCE_MSI_URL%%QUERY_STRING%' '%LOCAL_DESTINATION_MSI_PATH%'"
+
+@if NOT ERRORLEVEL 1 (
+    @echo Download succeeded
+) else (
+    @echo Failed to download "%REMOTE_SOURCE_MSI_URL%"
+)
+
+@REM Replace install_chef from Gem with one that has extra flags to turn on Chef service feature
+@REM <%= install_chef %>
+@ECHO Installing Chef...
+@msiexec /qn /i "%LOCAL_DESTINATION_MSI_PATH%" ADDLOCAL="ChefClientFeature,ChefServiceFeature"
+@ECHO Installation complete
+@endlocal
+
+@ECHO Populating Chef configuration...
+> <%= bootstrap_directory %>\validation.pem (
+ <%= validation_key %>
+)
+
+<% if @config[:encrypted_data_bag_secret] -%>
+> <%= bootstrap_directory %>\encrypted_data_bag_secret (
+ <%= encrypted_data_bag_secret %>
+)
+<% end -%>
+
+> <%= bootstrap_directory %>\client.rb (
+ <%= config_content.sub(":info", ":auto") %>
+)
+
+> <%= bootstrap_directory %>\first-boot.json (
+ <%= first_boot %>
+)
+
+@REM Clean up after ourselves before running Chef
+@DEL <%= bootstrap_directory %>\wget.ps1
+
+@ECHO Complete.
+@ECHO Running Chef for the first time...
+<%= start_chef %>
+
