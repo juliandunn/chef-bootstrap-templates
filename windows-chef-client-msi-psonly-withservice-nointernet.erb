@@ -1,0 +1,79 @@
+@rem
+@rem Author:: Seth Chisamore (<schisamo@opscode.com>)
+@rem Author:: Julian C. Dunn (<jdunn@opscode.com>)
+
+@rem Copyright:: Copyright (c) 2011-2013 Opscode, Inc.
+@rem License:: Apache License, Version 2.0
+@rem
+@rem Licensed under the Apache License, Version 2.0 (the "License");
+@rem you may not use this file except in compliance with the License.
+@rem You may obtain a copy of the License at
+@rem
+@rem     http://www.apache.org/licenses/LICENSE-2.0
+@rem
+@rem Unless required by applicable law or agreed to in writing, software
+@rem distributed under the License is distributed on an "AS IS" BASIS,
+@rem WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+@rem See the License for the specific language governing permissions and
+@rem limitations under the License.
+@rem
+
+@echo off
+@setlocal
+
+<%= "SETX HTTP_PROXY \"#{knife_config[:bootstrap_proxy]}\"" if knife_config[:bootstrap_proxy] %>
+@mkdir <%= bootstrap_directory %>
+
+> <%= bootstrap_directory %>\wget.ps1 (
+ <%= win_wget_ps %>
+)
+
+:install
+@rem Install Chef using chef-client MSI installer
+
+@set "REMOTE_SOURCE_MSI_URL=http://your-server/chef/chef-client-11.12.2-1.windows.msi"
+@set "LOCAL_DESTINATION_MSI_PATH=<%= local_download_path %>"
+
+@if EXIST "%LOCAL_DESTINATION_MSI_PATH%" del /f /q "%LOCAL_DESTINATION_MSI_PATH%"
+@echo Downloading Chef...
+@powershell -ExecutionPolicy Unrestricted -NoProfile -NonInteractive "& '<%= bootstrap_directory %>\wget.ps1' '%REMOTE_SOURCE_MSI_URL%' '%LOCAL_DESTINATION_MSI_PATH%'"
+
+@if NOT ERRORLEVEL 1 (
+    @echo Download succeeded
+) else (
+    @echo Failed to download "%REMOTE_SOURCE_MSI_URL%"
+)
+
+@REM Replace install_chef from Gem with one that has extra flags to turn on Chef service feature
+@REM <%= install_chef %>
+@ECHO Installing Chef...
+@msiexec /qn /i "%LOCAL_DESTINATION_MSI_PATH%" ADDLOCAL="ChefClientFeature,ChefServiceFeature"
+@ECHO Installation complete
+@endlocal
+
+@ECHO Populating Chef configuration...
+> <%= bootstrap_directory %>\validation.pem (
+ <%= validation_key %>
+)
+
+<% if @config[:encrypted_data_bag_secret] -%>
+> <%= bootstrap_directory %>\encrypted_data_bag_secret (
+ <%= encrypted_data_bag_secret %>
+)
+<% end -%>
+
+> <%= bootstrap_directory %>\client.rb (
+ <%= config_content.sub(":info", ":auto") %>
+)
+
+> <%= bootstrap_directory %>\first-boot.json (
+ <%= first_boot %>
+)
+
+@REM Clean up after ourselves before running Chef
+@DEL <%= bootstrap_directory %>\wget.ps1
+
+@ECHO Complete.
+@ECHO Running Chef for the first time...
+<%= start_chef %>
+
