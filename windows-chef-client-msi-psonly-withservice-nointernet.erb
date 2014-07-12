@@ -36,7 +36,7 @@
 
 @if EXIST "%LOCAL_DESTINATION_MSI_PATH%" del /f /q "%LOCAL_DESTINATION_MSI_PATH%"
 @echo Downloading Chef...
-@powershell -ExecutionPolicy Unrestricted -NoProfile -NonInteractive "& '<%= bootstrap_directory %>\wget.ps1' '%REMOTE_SOURCE_MSI_URL%' '%LOCAL_DESTINATION_MSI_PATH%'"
+@powershell -ExecutionPolicy Unrestricted -NoProfile -NonInteractive -File <%= bootstrap_directory %>\wget.ps1 "%REMOTE_SOURCE_MSI_URL%" "%LOCAL_DESTINATION_MSI_PATH%"
 
 @if NOT ERRORLEVEL 1 (
     @echo Download succeeded
