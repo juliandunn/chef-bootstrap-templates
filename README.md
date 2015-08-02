@@ -6,13 +6,14 @@ This is collection of Chef bootstrap templates for nonstandard OSes, or for folk
 Usage
 -----
 
-Put the relevant template in your `$HOME/.chef/bootstrap` directory; then you can bootstrap a node with the --distro flag, e.g.
+Bootstrap a node with the `--bootstrap-template` flag, e.g.
 
 ```shell
-$ knife bootstrap 1.2.3.4 --distro template-name
+$ knife bootstrap 1.2.3.4 --bootstrap-template /path/to/your/template-name.erb
 ```
+It's common to put bootstrap templates in your `~/.chef/bootstrap` directory, but not required.
 
-Note that `template-name` is the filename of the template without the `.erb` extension.
+Note that the old flags `--distro` and `--template-file` are deprecated.
 
 License & Authors
 -----------------
