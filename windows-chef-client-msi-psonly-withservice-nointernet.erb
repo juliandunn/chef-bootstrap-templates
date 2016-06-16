@@ -53,7 +53,7 @@
 
 @ECHO Populating Chef configuration...
 > <%= bootstrap_directory %>\validation.pem (
- <%= validation_key %>
+ <%= escape_and_echo(validation_key) %>
 )
 
 <% if @config[:encrypted_data_bag_secret] -%>
